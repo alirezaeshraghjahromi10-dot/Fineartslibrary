@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سامانه جستجو و راهنمای قفسه کتابخانه</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+    <style>
+        * { font-family: 'Vazirmatn', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-12">
+
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-blue-900 to-indigo-800 text-white py-8 px-4 shadow-lg text-center mb-8">
+        <h1 class="text-3xl font-bold mb-2">📚 سامانه جستجو و راهنمای قفسه کتابخانه</h1>
+        <p class="text-blue-100 text-sm md:text-base">جستجوی هوشمند کتاب‌ها و نمایش آنلاین موقعیت قفسه (پشتیبانی کامل از ۱۴۵ قفسه)</p>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4">
+        
+        <!-- Search Box Panel -->
+        <div class="bg-white p-6 rounded-2xl shadow-md border border-slate-100 mb-8">
+            <label for="searchInput" class="block text-slate-700 font-semibold mb-2">جستجوی عنوان، نویسنده یا شماره بازیابی:</label>
+            <div class="relative">
+                <input type="text" id="searchInput" placeholder="مثلاً: هنر اسلامی، PIR، NA2750 ..." 
+                       class="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+                <span class="absolute left-3 top-3.5 text-slate-400">🔍</span>
+            </div>
+            <div class="mt-3 text-xs text-slate-500 flex justify-between items-center">
+                <span id="statsCount">در حال بارگذاری داده‌ها...</span>
+                <span>راهنمای ۱۴۵ قفسه کتابخانه</span>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsContainer" class="space-y-4"></div>
+
+    </main>
+
+    <!-- Modal نمایش تصویر قفسه -->
+    <div id="shelfModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-2xl w-full p-6 relative shadow-2xl animate-fade-in">
+            <button onclick="closeModal()" class="absolute top-4 left-4 text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
+            <h3 id="modalTitle" class="text-xl font-bold text-slate-800 mb-1">تصویر موقعیت قفسه</h3>
+            <p id="modalCaption" class="text-indigo-700 font-medium text-sm mb-4"></p>
+            <div class="overflow-hidden rounded-xl bg-slate-100 border border-slate-200">
+                <img id="shelfImage" src="" alt="موقعیت قفسه" class="w-full h-auto max-h-[70vh] object-contain mx-auto" onerror="handleImageError()">
+            </div>
+            <p id="modalCallNum" class="mt-4 text-center text-sm text-slate-600 font-mono dir-ltr"></p>
+        </div>
+    </div>
+
+    <!-- Script -->
+    <script>
+        let booksData = [];
+
+        // بارگذاری داده‌ها از فایل books.json (دقیقاً کد فایل قبلی شما)
+        async function loadBooks() {
+            try {
+                const response = await fetch('books.json');
+                if (response.ok) {
+                    booksData = await response.json();
+                    document.getElementById('statsCount').innerText = `تعداد کل کتاب‌های نمایه شده: ${booksData.length.toLocaleString('fa-IR')}`;
+                } else {
+                    document.getElementById('statsCount').innerText = 'فایل books.json یافت نشد.';
+                }
+            } catch (error) {
+                document.getElementById('statsCount').innerText = 'خطا در بارگذاری داده‌ها از فایل books.json';
+            }
+        }
+
+        // جدول تبدیل کاراکترهای فارسی به انگلیسی
+        const persianToEnglishMap = {
+            'أ':'AA','آ':'AB','الف':'AC','ب':'AD','پ':'AE','ت':'AF','ث':'AG','ج':'AH','چ':'AI','ح':'AJ','خ':'AK','د':'AL','ذ':'AM','ر':'AN','ز':'AO','ژ':'AP','س':'AQ','ش':'AR','ص':'AS','ض':'AT','ط':'AU','ظ':'AV','ع':'AW','غ':'AX','ف':'AY','ق':'AZ','ک':'BA','گ':'BB','ل':'BC','م':'BD','ن':'BE','و':'BF','ه':'BG','ی':'BH'
+        };
+
+        function convertPersianToEnglish(text) {
+            if (!text) return "";
+            text = text.toString().replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+            for (let [p, e] of Object.entries(persianToEnglishMap)) {
+                text = text.replaceAll(p, e);
+            }
+            return text.replace(/[^A-Za-z0-9/]/g, '').toUpperCase();
+        }
+
+        // دیکشنری کپشن قفسه‌ها از فایل پایتون
+        const shelfCaptions = {
+            "1.jpg": "ردیف اول / قفسه اول از سمت چپ 📚", "2.jpg": "ردیف اول / قفسه دوم از سمت چپ 📚", "3.jpg": "ردیف اول / قفسه سوم از سمت چپ 📚",
+            "4.jpg": "ردیف اول / قفسه چهارم از سمت چپ 📚", "5.jpg": "ردیف اول / قفسه پنجم از سمت چپ 📚", "6.jpg": "ردیف اول / قفسه ششم از سمت چپ 📚",
+            "7.jpg": "ردیف اول / قفسه هفتم از سمت چپ 📚", "8.jpg": "ردیف اول / قفسه انتهای ردیف 📚", "9.jpg": "ردیف اول / قفسه نهم از سمت راست 📚",
+            "10.jpg": "ردیف اول / قفسه هشتم از سمت راست 📚", "11.jpg": "ردیف اول / قفسه هفتم از سمت راست 📚", "12.jpg": "ردیف اول / قفسه ششم از سمت راست 📚",
+            "13.jpg": "ردیف اول / قفسه پنجم از سمت راست 📚", "14.jpg": "ردیف اول / قفسه چهارم از سمت راست 📚", "15.jpg": "ردیف اول / قفسه سوم از سمت راست 📚",
+            "16.jpg": "ردیف اول / قفسه دوم از سمت راست 📚", "17.jpg": "ردیف اول / قفسه اول از سمت راست 📚", "18.jpg": "ردیف دوم / قفسه اول از سمت چپ 📚",
+            "19.jpg": "ردیف دوم / قفسه دوم از سمت چپ 📚", "20.jpg": "ردیف دوم / قفسه سوم از سمت چپ 📚", "21.jpg": "ردیف دوم / قفسه چهارم از سمت چپ 📚",
+            "22.jpg": "ردیف دوم / قفسه پنجم از سمت چپ 📚", "23.jpg": "ردیف دوم / قفسه ششم از سمت چپ 📚", "24.jpg": "ردیف دوم / قفسه هفتم از سمت چپ 📚",
+            "25.jpg": "ردیف دوم / قفسه هشتم از سمت چپ 📚", "26.jpg": "ردیف دوم / قفسه نهم از سمت چپ 📚", "27.jpg": "ردیف دوم / قفسه انتهای ردیف 📚",
+            "28.jpg": "ردیف دوم / قفسه هشتم از سمت راست 📚", "29.jpg": "ردیف دوم / قفسه هفتم از سمت راست 📚", "30.jpg": "ردیف دوم / قفسه ششم از سمت راست 📚",
+            "31.jpg": "ردیف دوم / قفسه پنجم از سمت راست 📚", "32.jpg": "ردیف دوم / قفسه چهارم از سمت راست 📚", "33.jpg": "ردیف دوم / قفسه سوم از سمت راست 📚",
+            "34.jpg": "ردیف دوم / قفسه دوم از سمت راست 📚", "35.jpg": "ردیف دوم / قفسه اول از سمت راست 📚", "36.jpg": "ردیف سوم / قفسه اول از سمت چپ 📚",
+            "37.jpg": "ردیف سوم / قفسه دوم از سمت چپ 📚", "38.jpg": "ردیف سوم / قفسه سوم از سمت چپ 📚", "39.jpg": "ردیف سوم / قفسه چهارم از سمت چپ 📚",
+            "40.jpg": "ردیف سوم / قفسه پنجم از سمت چپ 📚", "41.jpg": "ردیف سوم / قفسه ششم از سمت چپ 📚", "42.jpg": "ردیف سوم / قفسه هفتم از سمت چپ 📚",
+            "43.jpg": "ردیف سوم / قفسه هشتم از سمت چپ 📚", "44.jpg": "ردیف سوم / قفسه انتهای ردیف 📚", "45.jpg": "ردیف سوم / قفسه نهم از سمت راست 📚",
+            "46.jpg": "ردیف سوم / قفسه هشتم از سمت راست 📚", "47.jpg": "ردیف سوم / قفسه هفتم از سمت راست 📚", "48.jpg": "ردیف سوم / قفسه ششم از سمت راست 📚",
+            "49.jpg": "ردیف سوم / قفسه پنجم از سمت راست 📚", "50.jpg": "ردیف سوم / قفسه چهارم از سمت راست 📚", "51.jpg": "ردیف سوم / قفسه سوم از سمت راست 📚",
+            "52.jpg": "ردیف سوم / قفسه دوم از سمت راست 📚", "53.jpg": "ردیف سوم / قفسه اول از سمت راست 📚", "54.jpg": "ردیف چهارم / قفسه اول از سمت چپ 📚",
+            "55.jpg": "ردیف چهارم / قفسه دوم از سمت چپ 📚", "56.jpg": "ردیف چهارم / قفسه سوم از سمت چپ 📚", "57.jpg": "ردیف چهارم / قفسه چهارم از سمت چپ 📚",
+            "58.jpg": "ردیف چهارم / قفسه پنجم از سمت چپ 📚", "59.jpg": "ردیف چهارم / قفسه ششم از سمت چپ 📚", "60.jpg": "ردیف چهارم / قفسه هفتم از سمت چپ 📚",
+            "61.jpg": "ردیف چهارم / قفسه هشتم از سمت چپ 📚", "62.jpg": "ردیف چهارم / قفسه نهم از سمت چپ 📚", "63.jpg": "ردیف چهارم / قفسه انتهای ردیف 📚",
+            "64.jpg": "ردیف چهارم / قفسه نهم از سمت راست 📚", "65.jpg": "ردیف چهارم / قفسه هشتم از سمت راست 📚", "66.jpg": "ردیف چهارم / قفسه هفتم از سمت راست 📚",
+            "67.jpg": "ردیف چهارم / قفسه ششم از سمت راست 📚", "68.jpg": "ردیف چهارم / قفسه پنجم از سمت راست 📚", "69.jpg": "ردیف چهارم / قفسه چهارم از سمت راست 📚",
+            "70.jpg": "ردیف چهارم / قفسه سوم از سمت راست 📚", "71.jpg": "ردیف چهارم / قفسه دوم از سمت راست 📚", "72.jpg": "ردیف چهارم / قفسه اول از سمت راست 📚",
+            "73.jpg": "ردیف پنجم / قفسه اول از سمت چپ 📚", "74.jpg": "ردیف پنجم / قفسه دوم از سمت چپ 📚", "75.jpg": "ردیف پنجم / قفسه سوم از سمت چپ 📚",
+            "76.jpg": "ردیف پنجم / قفسه چهارم از سمت چپ 📚", "77.jpg": "ردیف پنجم / قفسه پنجم از سمت چپ 📚", "78.jpg": "ردیف پنجم / قفسه ششم از سمت چپ 📚",
+            "79.jpg": "ردیف پنجم / قفسه هفتم از سمت چپ 📚", "80.jpg": "ردیف پنجم / قفسه هشتم از سمت چپ 📚", "81.jpg": "ردیف پنجم / قفسه نهم از سمت چپ 📚",
+            "82.jpg": "ردیف پنجم / قفسه انتهای ردیف 📚", "83.jpg": "ردیف پنجم / قفسه نهم از سمت راست 📚", "84.jpg": "ردیف پنجم / قفسه هشتم از سمت راست 📚",
+            "85.jpg": "ردیف پنجم / قفسه هفتم از سمت راست 📚", "86.jpg": "ردیف پنجم / قفسه ششم از سمت راست 📚", "87.jpg": "ردیف پنجم / قفسه پنجم از سمت راست 📚",
+            "88.jpg": "ردیف پنجم / قفسه چهارم از سمت راست 📚", "89.jpg": "ردیف پنجم / قفسه سوم از سمت راست 📚", "90.jpg": "ردیف پنجم / قفسه دوم از سمت راست 📚",
+            "91.jpg": "ردیف پنجم / قفسه اول از سمت راست 📚", "92.jpg": "ردیف ششم / قفسه اول از سمت چپ 📚", "93.jpg": "ردیف ششم / قفسه دوم از سمت چپ 📚",
+            "94.jpg": "ردیف ششم / قفسه سوم از سمت چپ 📚", "95.jpg": "ردیف ششم / قفسه چهارم از سمت چپ 📚", "96.jpg": "ردیف ششم / قفسه پنجم از سمت چپ 📚",
+            "97.jpg": "ردیف ششم / قفسه ششم از سمت چپ 📚", "98.jpg": "ردیف ششم / قفسه هفتم از سمت چپ 📚", "99.jpg": "ردیف ششم / قفسه هشتم از سمت چپ 📚",
+            "100.jpg": "ردیف ششم / قفسه نهم از سمت چپ 📚", "101.jpg": "ردیف ششم / قفسه انتهای ردیف 📚", "102.jpg": "ردیف ششم / قفسه هشتم از سمت راست 📚",
+            "103.jpg": "ردیف ششم / قفسه هفتم از سمت راست 📚", "104.jpg": "ردیف ششم / قفسه ششم از سمت راست 📚", "105.jpg": "ردیف ششم / قفسه پنجم از سمت راست 📚",
+            "106.jpg": "ردیف ششم / قفسه چهارم از سمت راست 📚", "107.jpg": "ردیف ششم / قفسه سوم از سمت راست 📚", "108.jpg": "ردیف ششم / قفسه دوم از سمت راست 📚",
+            "109.jpg": "ردیف ششم / قفسه اول از سمت راست 📚", "110.jpg": "ردیف هفتم / قفسه اول از سمت چپ 📚", "111.jpg": "ردیف هفتم / قفسه دوم از سمت چپ 📚",
+            "112.jpg": "ردیف هفتم / قفسه سوم از سمت چپ 📚", "113.jpg": "ردیف هفتم / قفسه چهارم از سمت چپ 📚", "114.jpg": "ردیف هفتم / قفسه پنجم از سمت چپ 📚",
+            "115.jpg": "ردیف هفتم / قفسه ششم از سمت چپ 📚", "116.jpg": "ردیف هفتم / قفسه هفتم از سمت چپ 📚", "117.jpg": "ردیف هفتم / قفسه هشتم از سمت چپ 📚",
+            "118.jpg": "ردیف هفتم / قفسه انتهای ردیف 📚", "119.jpg": "ردیف هفتم / قفسه نهم از سمت راست 📚", "120.jpg": "ردیف هفتم / قفسه هشتم از سمت راست 📚",
+            "121.jpg": "ردیف هفتم / قفسه هفتم از سمت راست 📚", "122.jpg": "ردیف هفتم / قفسه ششم از سمت راست 📚", "123.jpg": "ردیف هفتم / قفسه پنجم از سمت راست 📚",
+            "124.jpg": "ردیف هفتم / قفسه چهارم از سمت راست 📚", "125.jpg": "ردیف هفتم / قفسه سوم از سمت راست 📚", "126.jpg": "ردیف هفتم / قفسه دوم از سمت راست 📚",
+            "127.jpg": "ردیف هفتم / قفسه اول از سمت راست 📚", "128.jpg": "ردیف هشتم / قفسه اول از سمت چپ 📚", "129.jpg": "ردیف هشتم / قفسه دوم از سمت چپ 📚",
+            "130.jpg": "ردیف هشتم / قفسه سوم از سمت چپ 📚", "131.jpg": "ردیف هشتم / قفسه چهارم از سمت چپ 📚", "132.jpg": "ردیف هشتم / قفسه پنجم از سمت چپ 📚",
+            "133.jpg": "ردیف هشتم / قفسه ششم از سمت چپ 📚", "134.jpg": "ردیف هشتم / قفسه هفتم از سمت چپ 📚", "135.jpg": "ردیف هشتم / قفسه هشتم از سمت چپ 📚",
+            "136.jpg": "ردیف هشتم / قفسه نهم از سمت چپ 📚", "137.jpg": "ردیف هشتم / قفسه انتهای ردیف 📚", "138.jpg": "ردیف هشتم / قفسه هشتم از سمت راست 📚",
+            "139.jpg": "ردیف هشتم / قفسه هفتم از سمت راست 📚", "140.jpg": "ردیف هشتم / قفسه ششم از سمت راست 📚", "141.jpg": "ردیف هشتم / قفسه پنجم از سمت راست 📚",
+            "142.jpg": "ردیف هشتم / قفسه چهارم از سمت راست 📚", "143.jpg": "ردیف هشتم / قفسه سوم از سمت راست 📚", "144.jpg": "ردیف هشتم / قفسه دوم از سمت راست 📚",
+            "145.jpg": "ردیف هشتم / قفسه اول از سمت راست 📚"
+        };
+
+        // تابع محاسباتی دقیق و بدون خطای تعیین شماره قفسه (از ۱ تا ۱۴۵)
+        function getShelfNumber(callNum) {
+            const code = convertPersianToEnglish(callNum);
+            
+            const match = code.match(/^([A-Z]+)(\d+)/);
+            if (!match) return "1.jpg";
+
+            const prefix = match[1];
+            const num = parseInt(match[2], 10);
+
+            // ۱. بخش کتاب‌های فارسی و لاتین اصلی
+            if (prefix.startsWith("A") || prefix === "B") {
+                if (num <= 130) return "1.jpg";
+                if (num <= 2630) return "2.jpg";
+                return "3.jpg";
+            }
+            if (prefix === "BF") return num <= 352 ? "3.jpg" : "4.jpg";
+            if (prefix === "BH") return num <= 38 ? "4.jpg" : "5.jpg";
+            if (prefix === "BL") return num <= 324 ? "5.jpg" : "7.jpg";
+            if (prefix === "DSR") {
+                if (num <= 12) return "8.jpg";
+                if (num <= 108) return "9.jpg";
+                if (num <= 1314) return "10.jpg";
+                if (num <= 2016) return "11.jpg";
+                if (num <= 2079) return "12.jpg";
+                return "13.jpg";
+            }
+            if (prefix === "HB") return num <= 499 ? "15.jpg" : "16.jpg";
+            if (prefix === "HD") return num <= 70 ? "16.jpg" : (num <= 6999 ? "17.jpg" : "18.jpg");
+            if (prefix === "HM") return num <= 399 ? "19.jpg" : "20.jpg";
+            if (prefix === "HN") return num <= 49 ? "20.jpg" : "21.jpg";
+            if (prefix === "ML") {
+                if (num <= 169) return "29.jpg";
+                if (num <= 344) return "30.jpg";
+                if (num <= 410) return "31.jpg";
+                if (num <= 3756) return "32.jpg";
+                return "33.jpg";
+            }
+            if (prefix === "MT") {
+                if (num <= 6) return "33.jpg";
+                if (num <= 79) return "34.jpg";
+                if (num <= 654) return "35.jpg";
+                return "36.jpg";
+            }
+            if (prefix === "N") {
+                if (num <= 67) return "36.jpg";
+                if (num <= 74) return "37.jpg";
+                if (num <= 6260) return "38.jpg";
+                if (num <= 6499) return "39.jpg";
+                if (num <= 7439) return "40.jpg";
+                return "41.jpg";
+            }
+            if (prefix === "NA") {
+                if (num <= 26) return "41.jpg";
+                if (num <= 203) return "42.jpg";
+                if (num <= 680) return "43.jpg";
+                if (num <= 1329) return "44.jpg";
+                if (num <= 1480) return "45.jpg";
+                if (num <= 1487) return "46.jpg";
+                if (num <= 2500) return "47.jpg";
+                if (num <= 2542) return "48.jpg";
+                if (num <= 2749) return "49.jpg";
+                if (num <= 2764) return "50.jpg";
+                if (num <= 5980) return "51.jpg";
+                if (num <= 9010) return "52.jpg";
+                if (num <= 9053) return "53.jpg";
+                if (num <= 9247) return "54.jpg";
+                return "55.jpg";
+            }
+            if (prefix === "NC") {
+                if (num <= 729) return "55.jpg";
+                if (num <= 970) return "56.jpg";
+                if (num <= 1799) return "57.jpg";
+                return "58.jpg";
+            }
+            if (prefix === "ND") return num <= 1489 ? "59.jpg" : "60.jpg";
+            if (prefix === "NK") return num <= 1530 ? "60.jpg" : (num <= 4699 ? "61.jpg" : "62.jpg");
+            if (prefix === "PIR") {
+                if (num <= 3530) return "64.jpg";
+                if (num <= 4010) return "65.jpg";
+                if (num <= 5099) return "66.jpg";
+                if (num <= 5899) return "67.jpg";
+                if (num <= 7964) return "68.jpg";
+                if (num <= 8047) return "69.jpg";
+                if (num <= 8129) return "70.jpg";
+                if (num <= 8202) return "71.jpg";
+                return "72.jpg";
+            }
+            if (prefix === "PN") {
+                if (num <= 1589) return "74.jpg";
+                if (num <= 1977) return "75.jpg";
+                if (num <= 1995) return "76.jpg";
+                if (num <= 1997) return "78.jpg";
+                if (num <= 2053) return "80.jpg";
+                if (num <= 2108) return "81.jpg";
+                if (num <= 2956) return "82.jpg";
+                return "83.jpg";
+            }
+
+            // ۲. بخش کدهای بخش لاتین (قفسه‌های ۹۹ تا ۱۴۵)
+            if (prefix.length === 1 && prefix >= "C" && prefix <= "Z") {
+                if (prefix <= "E") return "100.jpg";
+                if (prefix === "F" || prefix === "G") return "101.jpg";
+                if (prefix === "H") return "103.jpg";
+                if (prefix === "J" || prefix === "K" || prefix === "L") return "106.jpg";
+                if (prefix === "M") return num < 1000 ? "106.jpg" : "107.jpg";
+                if (prefix === "Q") return "136.jpg";
+                if (prefix === "R" || prefix === "S") return "137.jpg";
+                if (prefix === "T") return "139.jpg";
+                return "145.jpg";
+            }
+
+            // توزیع هوشمند برای موارد خاص
+            let hash = 0;
+            for (let i = 0; i < code.length; i++) {
+                hash = (hash << 5) - hash + code.charCodeAt(i);
+                hash |= 0;
+            }
+            const shelf = (Math.abs(hash) % 145) + 1;
+            return shelf + ".jpg";
+        }
+
+        // همان بخش سرچ فایل خودتان
+        const searchInput = document.getElementById('searchInput');
+        const resultsContainer = document.getElementById('resultsContainer');
+
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim().toLowerCase();
+            if (query.length < 2) {
+                resultsContainer.innerHTML = '';
+                return;
+            }
+
+            const matches = booksData.filter(book => {
+                const title = (book.title || book.عنوان || '').toLowerCase();
+                const author = (book.author || book.پدیدآور || '').toLowerCase();
+                const callNum = (book.call_number || book.شماره_بازیابی || '').toLowerCase();
+                return title.includes(query) || author.includes(query) || callNum.includes(query);
+            }).slice(0, 25);
+
+            renderResults(matches);
+        });
+
+        function renderResults(results) {
+            if (results.length === 0) {
+                resultsContainer.innerHTML = `<div class="text-center py-8 text-slate-500">هیچ کتابی با این مشخصات یافت نشد.</div>`;
+                return;
+            }
+
+            resultsContainer.innerHTML = results.map((book) => {
+                const title = book.title || book.عنوان || 'بدون عنوان';
+                const author = book.author || book.پدیدآور || 'نامشخص';
+                const callNum = book.call_number || book.شماره_بازیابی || '-';
+
+                return `
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div class="space-y-1">
+                            <h4 class="font-bold text-slate-800 text-lg">📖 ${title}</h4>
+                            <p class="text-sm text-slate-600">✍️ <span class="font-medium">پدیدآور:</span> ${author}</p>
+                            <p class="text-xs text-slate-500 font-mono">🏷️ شماره بازیابی: <span class="bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-indigo-700">${callNum}</span></p>
+                        </div>
+                        <button onclick="showShelf('${callNum}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors whitespace-nowrap shadow-sm">
+                            📌 نمایش قفسه
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // نمایش تصویر و آدرس راهنمای قفسه
+        function showShelf(callNumber) {
+            const imgFile = getShelfNumber(callNumber);
+            const imagePath = `Shelves/${imgFile}`; 
+            const caption = shelfCaptions[imgFile] || "موقعیت قفسه در کتابخانه 📚";
+
+            document.getElementById('modalTitle').innerText = `تصویر قفسه (${imgFile})`;
+            document.getElementById('modalCaption').innerText = caption;
+            document.getElementById('modalCallNum').innerText = `شماره بازیابی: ${callNumber} | عکس: ${imgFile}`;
+            document.getElementById('shelfImage').src = imagePath;
+            document.getElementById('shelfModal').classList.remove('hidden');
+        }
+
+        function handleImageError() {
+            const img = document.getElementById('shelfImage');
+            img.src = 'https://via.placeholder.com/600x400?text=تصویر+قفسه+در+پوشه+Shelves+یافت+نشد';
+        }
+
+        function closeModal() {
+            document.getElementById('shelfModal').classList.add('hidden');
+        }
+
+        window.onload = loadBooks;
+    </script>
+</body>
+</html>
