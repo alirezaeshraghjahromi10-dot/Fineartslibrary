@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سامانه جستجو و راهنمای قفسه کتابخانه</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vazirmatn Font -->
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+    <style>
+        * {
+            font-family: 'Vazirmatn', sans-serif;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col justify-between">
+
+    <!-- Header Section -->
+    <header class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-xl">
+        <div class="max-w-6xl mx-auto px-4 py-8 text-center relative">
+            <div class="inline-block p-3 bg-white/10 rounded-2xl backdrop-blur-md mb-3 border border-white/10">
+                <span class="text-4xl">📚</span>
+            </div>
+            <h1 class="text-2xl md:text-4xl font-extrabold mb-2 tracking-tight">سامانه جستجو و راهنمای قفسه کتابخانه</h1>
+            <p class="text-blue-200 text-xs md:text-sm max-w-xl mx-auto font-light">
+                جستجوی هوشمند کتاب‌ها و نمایش موقعیت قفسه بر اساس رده‌بندی کنگره (دانشکدگان هنر)
+            </p>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-4xl mx-auto px-4 -mt-6 mb-12 w-full flex-grow">
+        
+        <!-- Search and Filter Card -->
+        <div class="bg-white rounded-2xl shadow-lg border border-slate-200/80 p-6 mb-6 backdrop-blur-lg">
+            <div class="flex flex-col md:flex-row gap-4 items-center">
+                <!-- Search Box -->
+                <div class="relative w-full">
+                    <input type="text" id="searchInput" 
+                           placeholder="جستجوی عنوان کتاب، نام پدیدآور، یا شماره بازیابی..." 
+                           class="w-full pl-10 pr-12 py-3.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all duration-200 text-sm md:text-base">
+                    <span class="absolute right-4 top-3.5 text-slate-400 text-lg">🔍</span>
+                    <button id="clearBtn" onclick="clearSearch()" class="hidden absolute left-3 top-3.5 text-slate-400 hover:text-slate-600 text-sm bg-slate-200 rounded-full w-6 h-6 items-center justify-center">✕</button>
+                </div>
+                
+                <!-- Filter Type -->
+                <select id="searchField" class="w-full md:w-48 py-3.5 px-3 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600">
+                    <option value="all">همه بخش‌ها</option>
+                    <option value="title">عنوان کتاب</option>
+                    <option value="author">پدیدآور / نویسنده</option>
+                    <option value="call_number">شماره بازیابی</option>
+                </select>
+            </div>
+
+            <!-- Stats & Counter -->
+            <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap justify-between items-center text-xs text-slate-500 font-medium">
+                <span id="resultsStats">در حال اماده‌سازی داده‌ها...</span>
+                <span class="flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    سیستم جستجوی محلی بر اساس کد کنگره
+                </span>
+            </div>
+        </div>
+
+        <!-- Results List -->
+        <div id="resultsContainer" class="space-y-3">
+            <!-- Dynamic Result Items Will Render Here -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden text-center py-16 bg-white rounded-2xl border border-slate-200/80 p-6">
+            <div class="text-5xl mb-3">🔎</div>
+            <h3 class="font-bold text-slate-700 text-lg mb-1">نتیجه‌ای یافت نشد!</h3>
+            <p class="text-slate-500 text-sm">لطفاً واژه‌های دیگری را امتحان کنید یا نوع فیلتر را تغییر دهید.</p>
+        </div>
+
+    </main>
+
+    <!-- Modal for Shelf Image Display -->
+    <div id="shelfModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl max-w-2xl w-full p-6 relative shadow-2xl transform transition-all border border-slate-100">
+            <!-- Close Button -->
+            <button onclick="closeModal()" class="absolute top-4 left-4 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold transition-all">&times;</button>
+            
+            <div class="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+                <span class="text-2xl">🗺️</span>
+                <div>
+                    <h3 id="modalTitle" class="text-lg font-bold text-slate-800">موقعیت تصویری قفسه</h3>
+                    <p id="modalSub" class="text-xs text-slate-500">راهنمای شماره قفسه مربوط به کتاب انتخابی</p>
+                </div>
+            </div>
+
+            <!-- Image Frame -->
+            <div class="overflow-hidden rounded-xl bg-slate-900 border border-slate-200 relative min-h-[250px] flex items-center justify-center">
+                <img id="shelfImage" src="" alt="تصویر موقعیت قفسه" class="w-full h-auto max-h-[60vh] object-contain mx-auto hidden" onload="this.classList.remove('hidden'); document.getElementById('imageLoader').classList.add('hidden');">
+                <div id="imageLoader" class="text-white text-sm flex flex-col items-center gap-2">
+                    <div class="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span>در حال دریافت تصویر قفسه...</span>
+                </div>
+            </div>
+
+            <!-- Details in Modal -->
+            <div class="mt-4 p-3 bg-indigo-50/60 rounded-xl border border-indigo-100/80 flex flex-wrap justify-between items-center text-xs text-slate-700">
+                <div>
+                    <span>شماره بازیابی: </span>
+                    <strong id="modalCallNum" class="font-mono bg-white px-2 py-0.5 rounded border border-indigo-200 text-indigo-800 text-sm dir-ltr inline-block"></strong>
+                </div>
+                <div>
+                    <span>کد تبدیلی: </span>
+                    <strong id="modalConvertedCode" class="font-mono bg-white px-2 py-0.5 rounded border border-indigo-200 text-slate-700 text-sm dir-ltr inline-block"></strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+        <p>سامانه راهنمای تصویری قفسه‌های کتابخانه — آماده‌سازی شده جهت میزبانی روی GitHub Pages</p>
+    </footer>
+
+    <!-- Application Script Logic -->
+    <script>
+        // ---------------------------------------------------------
+        // ۱. داده‌های نمونه کتاب‌ها (قابلیت جاپگزینی با فایل books.json)
+        // ---------------------------------------------------------
+        let booksData = [
+            { id: 1, title: "تاریخ هنر عمومی", author: "هلن گاردنر / ترجمه هرمز ریاحی", call_number: "N5300/G3" },
+            { id: 2, title: "معماری اسلامی ایران", author: "محمدکریم پیرنیا", call_number: "NA1483/P5" },
+            { id: 3, title: "هنر در گذر زمان", author: "هلن گاردنر", call_number: "N5300/G35" },
+            { id: 4, title: "مبانی طراحی گرافیک", author: "آرماندوین", call_number: "NC997/A7" },
+            { id: 5, title: "تاریخچه شهر و شهرنشینی در ایران", author: "حسین سلطان‌زاده", call_number: "HT147/I7S8" },
+            { id: 6, title: "تئوری و موسیقی ایرانی", author: "روح‌الله خالقی", call_number: "ML344/K4" },
+            { id: 7, title: "طراحی و معماری منظر", author: "نورمن کی هاکس", call_number: "SB472/H3" },
+            { id: 8, title: "هنرهای تجسمی و ساختار فرم", author: "فرشید حسینی", call_number: "N7430/H8" }
+        ];
+
+        // نگاشت تبدیل کاراکترهای فارسی/عربی به لاتین مطابق الگوی پایتون
+        const persianToEnglishMap = {
+            'أ':'AA','آ':'AB','الف':'AC','ب':'AD','پ':'AE','ت':'AF','ث':'AG','ج':'AH','چ':'AI','ح':'AJ','خ':'AK','د':'AL','ذ':'AM','ر':'AN','ز':'AO','ژ':'AP','س':'AQ','ش':'AR','ص':'AS','ض':'AT','ط':'AU','ظ':'AV','ع':'AW','غ':'AX','ف':'AY','ق':'AZ','ک':'BA','گ':'BB','ل':'BC','م':'BD','ن':'BE','و':'BF','ه':'BG','ی':'BH'
+        };
+
+        const persianNumbersMap = {
+            '۰':'0', '۱':'1', '۲':'2', '۳':'3', '۴':'4',
+            '۵':'5', '۶':'6', '۷':'7', '۸':'8', '۹':'9'
+        };
+
+        // ---------------------------------------------------------
+        // ۲. تبدیل شماره بازیابی فارسی به لاتین
+        // ---------------------------------------------------------
+        function convertPersianToEnglish(text) {
+            if (!text) return "";
+            let converted = text;
+            
+            // تبدیل اعداد
+            for (let [pNum, eNum] of Object.entries(persianNumbersMap)) {
+                converted = converted.replaceAll(pNum, eNum);
+            }
+            
+            // تبدیل حروف
+            for (let [pChar, eChar] of Object.entries(persianToEnglishMap)) {
+                converted = converted.replaceAll(pChar, eChar);
+            }
+            
+            // حذف کاراکترهای اضافی
+            return converted.replace(/[^A-Za-z0-9/]/g, '');
+        }
+
+        // ---------------------------------------------------------
+        // ۳. فراخوانی فایل books.json (در صورت وجود)
+        // ---------------------------------------------------------
+        async function fetchExternalBooksData() {
+            try {
+                const response = await fetch('books.json');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        booksData = data;
+                    }
+                }
+            } catch (e) {
+                console.log("استفاده از داده‌های داخلی پروژه (فایل books.json یافت نشد یا غیرفعال است).");
+            } finally {
+                updateStats(booksData.length);
+                renderResults(booksData.slice(0, 30));
+            }
+        }
+
+        // ---------------------------------------------------------
+        // ۴. منطق جستجو و فیلتر
+        // ---------------------------------------------------------
+        const searchInput = document.getElementById('searchInput');
+        const searchField = document.getElementById('searchField');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const emptyState = document.getElementById('emptyState');
+        const clearBtn = document.getElementById('clearBtn');
+
+        function handleSearch() {
+            const query = searchInput.value.trim().toLowerCase();
+            const field = searchField.value;
+
+            if (query.length > 0) {
+                clearBtn.classList.remove('hidden');
+                clearBtn.classList.add('flex');
+            } else {
+                clearBtn.classList.add('hidden');
+                clearBtn.classList.remove('flex');
+            }
+
+            if (!query) {
+                emptyState.classList.add('hidden');
+                renderResults(booksData.slice(0, 30));
+                updateStats(booksData.length);
+                return;
+            }
+
+            const filtered = booksData.filter(book => {
+                const title = (book.title || book.عنوان || '').toLowerCase();
+                const author = (book.author || book.پدیدآور || '').toLowerCase();
+                const callNum = (book.call_number || book.شماره_بازیابی || '').toLowerCase();
+
+                if (field === 'title') return title.includes(query);
+                if (field === 'author') return author.includes(query);
+                if (field === 'call_number') return callNum.includes(query);
+
+                return title.includes(query) || author.includes(query) || callNum.includes(query);
+            });
+
+            if (filtered.length === 0) {
+                resultsContainer.innerHTML = '';
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                renderResults(filtered.slice(0, 50));
+            }
+
+            updateStats(booksData.length, filtered.length);
+        }
+
+        function clearSearch() {
+            searchInput.value = '';
+            handleSearch();
+            searchInput.focus();
+        }
+
+        function updateStats(total, found = null) {
+            const statsElement = document.getElementById('resultsStats');
+            if (found !== null) {
+                statsElement.innerText = `نمایش ${found.toLocaleString('fa-IR')} مورد از کل ${total.toLocaleString('fa-IR')} کتاب`;
+            } else {
+                statsElement.innerText = `تعداد کل کتاب‌های ثبت‌شده: ${total.toLocaleString('fa-IR')} عنوان`;
+            }
+        }
+
+        // ---------------------------------------------------------
+        // ۵. رندر کارت‌های نتایج
+        // ---------------------------------------------------------
+        function renderResults(items) {
+            resultsContainer.innerHTML = items.map(book => {
+                const title = book.title || book.عنوان || 'بدون عنوان';
+                const author = book.author || book.پدیدآور || 'نامشخص';
+                const callNum = book.call_number || book.شماره_بازیابی || '-';
+
+                return `
+                    <div class="bg-white rounded-xl border border-slate-200/80 p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="space-y-1.5">
+                            <h4 class="font-bold text-slate-800 text-base md:text-lg flex items-center gap-2">
+                                <span class="text-indigo-600">📖</span> ${title}
+                            </h4>
+                            <p class="text-xs md:text-sm text-slate-600 flex items-center gap-1">
+                                <span class="text-slate-400">✍️ پدیدآور:</span>
+                                <span class="font-medium">${author}</span>
+                            </p>
+                            <div class="pt-1">
+                                <span class="inline-flex items-center gap-1 text-xs font-mono bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200 dir-ltr">
+                                    🏷️ <strong class="text-indigo-700">${callNum}</strong>
+                                </span>
+                            </div>
+                        </div>
+                        <button onclick="openShelfModal('${callNum}')" 
+                                class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs md:text-sm px-4 py-2.5 rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2 whitespace-nowrap">
+                            <span>📌</span>
+                            <span>نمایش موقعیت قفسه</span>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ---------------------------------------------------------
+        // ۶. پنجره مدال عکس قفسه (Modal)
+        // ---------------------------------------------------------
+        function openShelfModal(callNumber) {
+            const convertedCode = convertPersianToEnglish(callNumber);
+            
+            // تعیین مسیر تصویر قفسه بر اساس پوشه Shelves
+            // در صورتی که عکس مشخصی بر اساس شماره قفسه دارید، شماره را جاگذاری کنید
+            const imagePath = `Shelves/1.jpg`; 
+
+            document.getElementById('modalCallNum').innerText = callNumber;
+            document.getElementById('modalConvertedCode').innerText = convertedCode || '-';
+            
+            const shelfImg = document.getElementById('shelfImage');
+            const loader = document.getElementById('imageLoader');
+            
+            shelfImg.classList.add('hidden');
+            loader.classList.remove('hidden');
+            shelfImg.src = imagePath;
+
+            document.getElementById('shelfModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('shelfModal').classList.add('hidden');
+        }
+
+        // بستن مدال با کلیک روی پس‌زمینه
+        document.getElementById('shelfModal').addEventListener('click', (e) => {
+            if (e.target.id === 'shelfModal') closeModal();
+        });
+
+        // ---------------------------------------------------------
+        // ۷. رویدادها و راه‌اندازی اولیه
+        // ---------------------------------------------------------
+        searchInput.addEventListener('input', handleSearch);
+        searchField.addEventListener('change', handleSearch);
+
+        window.onload = () => {
+            fetchExternalBooksData();
+        };
+    </script>
+</body>
+</html>
